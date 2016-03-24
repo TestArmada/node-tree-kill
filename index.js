@@ -4,6 +4,28 @@ var childProcess = require("child_process");
 var spawn = childProcess.spawn;
 var exec = childProcess.exec;
 
+function killChildProcesses (pid, callback) {
+  getTree(pid, function (tree) {
+    var children = tree[pid.toString()];
+
+    var killNext = function () {
+      if (children.length > 0) {
+        treeKill(children.shift(), "SIGKILL", function () {
+          killNext();
+        });
+      } else {
+        callback();
+      }
+    };
+
+    if (children && children.length > 0) {
+      killNext();
+    } else {
+      callback();
+    }
+  });
+}
+
 function getTree (pid, callback) {
   var tree = {};
   var pidsToProcess = {};
@@ -135,5 +157,6 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
 module.exports = {
   kill: treeKill,
   killPid: killPid,
-  getTree: getTree
+  getTree: getTree,
+  killChildProcesses: killChildProcesses
 };

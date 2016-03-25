@@ -15,45 +15,65 @@ function getZombieChildren (pid, gracefulExitTimeout, callback) {
   // only likely to see it once. This COULD lead to false positives if we're
   // on a system that is rotating through pids at an extremely high rate.
   var seenPidCounts = {};
+  var numScans = 0;
 
   var checkForZombies = function () {
     var tree = getTree(pid, function (tree) {
+      numScans++;
       var children = tree[pid];
       if (children && children.length > 0) {
-        // 1. delete pids that we saw before but we don't see now
+        // 1. delete pids that we saw before but we DON'T see now
         Object.keys(seenPidCounts).forEach(function (seenPid) {
           if (children.filter(function (childPid) {
-            return childPid === seenPid;
+            return childPid.toString() === seenPid.toString();
           }).length === 0) {
             // if seenPid is not in the latest tree, remove it from seenPids
-            delete seenPidCounts[seenPid];
+            delete seenPidCounts[seenPid.toString()];
           }
         });
 
         // 2. add pids that we see now, increment ones we've seen before *and* see now
-        children.forEach(function (childPid) {
-          if (seenPidCounts.hasOwnProperty(childPid)) {
-            seenPidCounts[childPid]++;
+        children.forEach(function (childPid) {  
+          if (seenPidCounts.hasOwnProperty(childPid.toString())) {
+            seenPidCounts[childPid.toString()]++;
           } else {
-            seenPidCounts[childPid] = 1;
+            seenPidCounts[childPid.toString()] = 1;
           }
         });
 
         // 3. determine if we have zombies
         var zombies = Object.keys(seenPidCounts).filter(function (seenPid) {
-          return seenPidCounts[seenPid] > 1;
+          return seenPidCounts[seenPid.toString()] > 1;
         });
 
-        // 4. if zombies are found and we're past the gracefulExitTimeout, return the list, else keep scanning
-        // 5. if zombies aren't found, return an empty list
-        if (zombies.length > 0) {
-          if (Date.now() - startTime > gracefulExitTimeout) {
-            return callback(zombies);
-          } else {
-            setTimeout(checkForZombies, SCAN_INTERVAL);
-          }   
+        //
+        // 4:
+        //    A) if NO children are found at all, return empty list
+        //    B) if some children exist:
+        //         if we have not scanned more than once, keep scanning. No conclusions yet.
+        //         if we've scanned more than once:
+        //           if zombies
+        //              past the gracefulExitTimeout? return list of zombies
+        //              else keep scanning
+        //           no zombies?
+        //              return empty list
+        //
+        if (children.length === 0) {
+          return callback([]);
         } else {
-          return callback(zombies);
+          if (numScans < 2) {
+            setTimeout(checkForZombies, SCAN_INTERVAL);
+          } else {
+            if (zombies.length > 0) {
+              if (Date.now() - startTime > gracefulExitTimeout) {
+                return callback(zombies);
+              } else {
+                setTimeout(checkForZombies, SCAN_INTERVAL);
+              }   
+            } else {
+              return callback([]);
+            }
+          }
         }
       } else {
         // we dont' see any child processes. We're good

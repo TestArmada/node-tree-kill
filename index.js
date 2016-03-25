@@ -38,7 +38,11 @@ function getTree (pid, callback) {
       break;
     case "darwin":
       buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("pgrep", ["-P", parentPid]);
+        var output = spawn("pgrep", ["-P", parentPid]);
+        if (lib.debug) {
+          console.log("pgrep output for " + pid + ": ", output);
+        }
+        return output;
       }, function () {
         callback(tree);
       });
@@ -48,7 +52,11 @@ function getTree (pid, callback) {
       break;
     default: // Linux
       buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
+        var output = spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
+        if (lib.debug) {
+          console.log("ps output for " + pid + ": ", output);
+        }
+        return output;
       }, function () {
         callback(tree);
       });
@@ -154,7 +162,8 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
 }
 
 
-module.exports = {
+var lib = {
+  debug: false,
   kill: treeKill,
   killPid: killPid,
   getTree: getTree,

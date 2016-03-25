@@ -169,3 +169,5 @@ var lib = {
   getTree: getTree,
   killChildProcesses: killChildProcesses
 };
+
+module.exports = lib;

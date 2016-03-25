@@ -4,6 +4,29 @@ var childProcess = require("child_process");
 var spawn = childProcess.spawn;
 var exec = childProcess.exec;
 
+function showDebugInfo (pid, callback) {
+  var ps;
+  switch (process.platform) {
+    case "darwin":
+      ps = spawn("pgrep", ["-P", pid, "-l"]);
+      break;
+    default:
+      ps = spawn("ps", ["--ppid", pid]);
+      break;
+  }
+
+  var allData = "";
+  ps.stdout.on("data", function (data) {
+    var data = data.toString("ascii");
+    allData += data;
+  });
+  ps.on("close", function () {
+    console.log("ps info for " + pid);
+    console.log(allData);
+    callback();
+  });
+}
+
 function killChildProcesses (pid, callback) {
   getTree(pid, function (tree) {
     var children = tree[pid.toString()];
@@ -40,7 +63,13 @@ function getTree (pid, callback) {
       buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
         return spawn("pgrep", ["-P", parentPid]);
       }, function () {
-        callback(tree);
+        if (lib.debug) {
+          showDebugInfo(pid, function () {
+            callback(tree);
+          })
+        } else {
+          callback(tree);
+        }
       });
       break;
     case "sunos":
@@ -50,7 +79,13 @@ function getTree (pid, callback) {
       buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
         return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
       }, function () {
-        callback(tree);
+        if (lib.debug) {
+          showDebugInfo(pid, function () {
+            callback(tree);
+          })
+        } else {
+          callback(tree);
+        }
       });
       break;
   }
@@ -131,10 +166,6 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
   });
 
   var onClose = function (code) {
-    if (lib.debug) {
-      console.log("process command output output for " + parentPid + ": ", allData);
-    }
-
     delete pidsToProcess[parentPid];
 
     if (code != 0) {

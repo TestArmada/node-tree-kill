@@ -4,6 +4,67 @@ var childProcess = require("child_process");
 var spawn = childProcess.spawn;
 var exec = childProcess.exec;
 
+// return child processes of pid that appear to be suspiciously hanging around
+// within the scope of gracefulExitTimeout
+function getZombieChildren (pid, gracefulExitTimeout, callback) {
+  var startTime = Date.now();
+  var SCAN_INTERVAL = 500;
+
+  // NOTE: on some platforms, the ps command itself appears as a child of pid.
+  // This is a short lived child so it doesn't count as a zombie, hence we're
+  // only likely to see it once. This COULD lead to false positives if we're
+  // on a system that is rotating through pids at an extremely high rate.
+  var seenPidCounts = {};
+
+  var checkForZombies = function () {
+    var tree = getTree(pid, function (tree) {
+      var children = tree[pid];
+      if (children && children.length > 0) {
+        // 1. delete pids that we saw before but we don't see now
+        Object.keys(seenPidCounts).forEach(function (seenPid) {
+          if (children.filter(function (childPid) {
+            return childPid === seenPid;
+          }).length === 0) {
+            // if seenPid is not in the latest tree, remove it from seenPids
+            delete seenPidCounts[seenPid];
+          }
+        });
+
+        // 2. add pids that we see now, increment ones we've seen before *and* see now
+        children.forEach(function (childPid) {
+          if (seenPidCounts.hasOwnProperty(childPid)) {
+            seenPidCounts[childPid]++;
+          } else {
+            seenPidCounts[childPid] = 1;
+          }
+        });
+
+        // 3. determine if we have zombies
+        var zombies = Object.keys(seenPidCounts).filter(function (seenPid) {
+          return seenPidCounts[seenPid] > 1;
+        });
+
+        // 4. if zombies are found and we're past the gracefulExitTimeout, return the list, else keep scanning
+        // 5. if zombies aren't found, return an empty list
+        if (zombies.length > 0) {
+          if (Date.now() - startTime > gracefulExitTimeout) {
+            return callback(zombies);
+          } else {
+            setTimeout(checkForZombies, SCAN_INTERVAL);
+          }   
+        } else {
+          return callback(zombies);
+        }
+      } else {
+        // we dont' see any child processes. We're good
+        return callback([]);
+      }
+    });
+  };
+
+  checkForZombies();
+}
+
 function showDebugInfo (pid, callback) {
   var ps;
   switch (process.platform) {
@@ -149,12 +210,20 @@ function killAll (tree, signal, callback) {
 }
 
 function killPid(pid, signal) {
+  signal = signal ? signal : "SIGKILL";
+
   try {
     process.kill(parseInt(pid, 10), signal);
   }
   catch (err) {
     if (err.code !== "ESRCH") throw err;
   }
+}
+
+function killPids(pids, signal) {
+  pids.forEach(function (pid) {
+    killPid(pid, signal);
+  });
 }
 
 function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesList, cb) {
@@ -194,7 +263,9 @@ var lib = {
   kill: treeKill,
   killPid: killPid,
   getTree: getTree,
-  killChildProcesses: killChildProcesses
+  killChildProcesses: killChildProcesses,
+  getZombieChildren: getZombieChildren,
+  killPids: killPids
 };
 
 module.exports = lib;

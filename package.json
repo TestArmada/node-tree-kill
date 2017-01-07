@@ -7,6 +7,23 @@
     "type": "git",
     "url": "git://github.com/TestArmada/node-tree-kill.git"
   },
+  "scripts": {
+    "test": "mocha && npm run lint && npm run coverage && npm run check-coverage",
+    "lint": "eslint index.js test/*.js",
+    "coverage": "istanbul cover _mocha -- --recursive",
+    "check-coverage": "istanbul check-coverage --statement 95 --function 95 --branch 90"
+  },
   "homepage": "https://github.com/TestArmada/node-tree-kill",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "babel-eslint": "^7.1.0",
+    "chai": "*",
+    "chai-spies": "^0.7.1",
+    "eslint": "^3.9.1",
+    "eslint-config-walmart": "^1.1.0",
+    "eslint-plugin-filenames": "^1.1.0",
+    "glob": "^7.1.1",
+    "istanbul": "^0.4.5",
+    "mocha": "*"
+  }
 }

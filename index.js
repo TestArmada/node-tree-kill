@@ -1,13 +1,25 @@
+/* eslint func-style: 0, no-console: 0, max-statements: 0, no-use-before-define: 0,
+  space-before-function-paren: 0, no-unused-vars: 0, consistent-return: 0,
+  no-lonely-if: 0, max-depth: 0, no-shadow: 0, no-redeclare: 0,
+  callback-return: 0, no-unreachable: 0, max-params: 0 */
 "use strict";
 
 var childProcess = require("child_process");
 var spawn = childProcess.spawn;
 var exec = childProcess.exec;
+var _process = process;
+var _console = console;
+var _setTimeout = setTimeout;
+
+/* istanbul ignore next */
+var _getDate = function () {
+  return Date.now();
+};
 
 // return child processes of pid that appear to be suspiciously hanging around
 // within the scope of gracefulExitTimeout
 function getZombieChildren (pid, gracefulExitTimeout, callback) {
-  var startTime = Date.now();
+  var startTime = _getDate();
   var SCAN_INTERVAL = 500;
 
   // NOTE: on some platforms, the ps command itself appears as a child of pid.
@@ -33,7 +45,7 @@ function getZombieChildren (pid, gracefulExitTimeout, callback) {
         });
 
         // 2. add pids that we see now, increment ones we've seen before *and* see now
-        children.forEach(function (childPid) {  
+        children.forEach(function (childPid) {
           if (seenPidCounts.hasOwnProperty(childPid.toString())) {
             seenPidCounts[childPid.toString()]++;
           } else {
@@ -62,14 +74,14 @@ function getZombieChildren (pid, gracefulExitTimeout, callback) {
           return callback([]);
         } else {
           if (numScans < 2) {
-            setTimeout(checkForZombies, SCAN_INTERVAL);
+            _setTimeout(checkForZombies, SCAN_INTERVAL);
           } else {
             if (zombies.length > 0) {
-              if (Date.now() - startTime > gracefulExitTimeout) {
+              if (_getDate() - startTime > gracefulExitTimeout) {
                 return callback(zombies);
               } else {
-                setTimeout(checkForZombies, SCAN_INTERVAL);
-              }   
+                _setTimeout(checkForZombies, SCAN_INTERVAL);
+              }
             } else {
               return callback([]);
             }
@@ -87,13 +99,13 @@ function getZombieChildren (pid, gracefulExitTimeout, callback) {
 
 function showDebugInfo (pid, callback) {
   var ps;
-  switch (process.platform) {
-    case "darwin":
-      ps = spawn("pgrep", ["-P", pid, "-l"]);
-      break;
-    default:
-      ps = spawn("ps", ["--ppid", pid]);
-      break;
+  switch (_process.platform) {
+  case "darwin":
+    ps = spawn("pgrep", ["-P", pid, "-l"]);
+    break;
+  default:
+    ps = spawn("ps", ["--ppid", pid]);
+    break;
   }
 
   var allData = "";
@@ -102,8 +114,8 @@ function showDebugInfo (pid, callback) {
     allData += data;
   });
   ps.on("close", function () {
-    console.log("ps info for " + pid);
-    console.log(allData);
+    _console.log("ps info for " + pid);
+    _console.log(allData);
     callback();
   });
 }
@@ -122,6 +134,7 @@ function killChildProcesses (pid, callback) {
       }
     };
 
+    /* istanbul ignore else */
     if (children && children.length > 0) {
       killNext();
     } else {
@@ -136,39 +149,41 @@ function getTree (pid, callback) {
   tree[pid] = [];
   pidsToProcess[pid] = 1;
 
-  switch (process.platform) {
-    case "win32":
-      throw new Error("Operation unsupported on Windows");
-      break;
-    case "darwin":
-      buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("pgrep", ["-P", parentPid]);
-      }, function () {
-        if (lib.debug) {
-          showDebugInfo(pid, function () {
-            callback(tree);
-          })
-        } else {
+  switch (_process.platform) {
+  case "win32":
+    throw new Error("Operation unsupported on Windows");
+    /* istanbul ignore next */
+    break;
+  case "darwin":
+    buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
+      return spawn("pgrep", ["-P", parentPid]);
+    }, function () {
+      if (lib.debug) {
+        showDebugInfo(pid, function () {
           callback(tree);
-        }
-      });
-      break;
-    case "sunos":
-      throw new Error("Operation unsupported on SunOS");
-      break;
-    default: // Linux
-      buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
-      }, function () {
-        if (lib.debug) {
-          showDebugInfo(pid, function () {
-            callback(tree);
-          })
-        } else {
+        });
+      } else {
+        callback(tree);
+      }
+    });
+    break;
+  case "sunos":
+    throw new Error("Operation unsupported on SunOS");
+    /* istanbul ignore next */
+    break;
+  default: // Linux
+    buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
+      return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
+    }, function () {
+      if (lib.debug) {
+        showDebugInfo(pid, function () {
           callback(tree);
-        }
-      });
-      break;
+        });
+      } else {
+        callback(tree);
+      }
+    });
+    break;
   }
 }
 
@@ -178,29 +193,30 @@ function treeKill (pid, signal, callback) {
   tree[pid] = [];
   pidsToProcess[pid] = 1;
 
-  switch (process.platform) {
-    case "win32":
-      exec("taskkill /pid " + pid + " /T /F", callback);
-      break;
-    case "darwin":
-      buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("pgrep", ["-P", parentPid]);
-      }, function () {
-        killAll(tree, signal, callback);
-      });
-      break;
-    case "sunos":
-      throw new Error("Operation unsupported on SunOS");
-      break;
-    default: // Linux
-      buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
-        return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
-      }, function () {
-        killAll(tree, signal, callback);
-      });
-      break;
+  switch (_process.platform) {
+  case "win32":
+    exec("taskkill /pid " + pid + " /T /F", callback);
+    break;
+  case "darwin":
+    buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
+      return spawn("pgrep", ["-P", parentPid]);
+    }, function () {
+      killAll(tree, signal, callback);
+    });
+    break;
+  case "sunos":
+    throw new Error("Operation unsupported on SunOS");
+    /* istanbul ignore next */
+    break;
+  default: // Linux
+    buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
+      return spawn("ps", ["-o", "pid", "--no-headers", "--ppid", parentPid]);
+    }, function () {
+      killAll(tree, signal, callback);
+    });
+    break;
   }
-};
+}
 
 function killAll (tree, signal, callback) {
   var killed = {};
@@ -233,10 +249,11 @@ function killPid(pid, signal) {
   signal = signal ? signal : "SIGKILL";
 
   try {
-    process.kill(parseInt(pid, 10), signal);
-  }
-  catch (err) {
-    if (err.code !== "ESRCH") throw err;
+    _process.kill(parseInt(pid, 10), signal);
+  } catch (err) {
+    if (err.code !== "ESRCH") {
+      throw err;
+    }
   }
 }
 
@@ -257,9 +274,10 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
   var onClose = function (code) {
     delete pidsToProcess[parentPid];
 
-    if (code != 0) {
+    if (code !== 0) {
       // no more parent processes
-      if (Object.keys(pidsToProcess).length == 0) {
+      /* istanbul ignore else */
+      if (Object.keys(pidsToProcess).length === 0) {
         cb();
       }
       return;
@@ -277,7 +295,6 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
   ps.on("close", onClose);
 }
 
-
 var lib = {
   debug: false,
   kill: treeKill,
@@ -285,7 +302,27 @@ var lib = {
   getTree: getTree,
   killChildProcesses: killChildProcesses,
   getZombieChildren: getZombieChildren,
-  killPids: killPids
+  killPids: killPids,
+  setMocks: function(mocks) {
+    if (mocks.spawn) {
+      spawn = mocks.spawn;
+    }
+    if (mocks.exec) {
+      exec = mocks.exec;
+    }
+    if (mocks.process) {
+      _process = mocks.process;
+    }
+    if (mocks.console) {
+      _console = mocks.console;
+    }
+    if (mocks.date) {
+      _getDate = mocks.date;
+    }
+    if (mocks.setTimeout) {
+      _setTimeout = mocks.setTimeout;
+    }
+  }
 };
 
 module.exports = lib;

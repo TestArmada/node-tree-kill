@@ -100,6 +100,9 @@ function getZombieChildren (pid, gracefulExitTimeout, callback) {
 function showDebugInfo (pid, callback) {
   var ps;
   switch (_process.platform) {
+  case "win32":
+    ps = spawn("wmic.exe", ["process", "where", "(ProcessId=" + pid + ")", "get", "/format:list"]);
+    break;
   case "darwin":
     ps = spawn("pgrep", ["-P", pid, "-l"]);
     break;

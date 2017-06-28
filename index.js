@@ -151,8 +151,17 @@ function getTree (pid, callback) {
 
   switch (_process.platform) {
   case "win32":
-    throw new Error("Operation unsupported on Windows");
-    /* istanbul ignore next */
+    buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
+      return spawn("wmic.exe", ["PROCESS", "where", "(ParentProcessId=" + parentPid + ")", "get", "ProcessId"]);
+    }, function () {
+      if (lib.debug) {
+        showDebugInfo(pid, function () {
+          callback(tree);
+        });
+      } else {
+        callback(tree);
+      }
+    });
     break;
   case "darwin":
     buildProcessTree(pid, tree, pidsToProcess, function (parentPid) {
@@ -283,13 +292,21 @@ function buildProcessTree (parentPid, tree, pidsToProcess, spawnChildProcessesLi
       return;
     }
 
-    allData.match(/\d+/g).forEach(function (pid) {
-      pid = parseInt(pid, 10);
-      tree[parentPid].push(pid);
-      tree[pid] = [];
-      pidsToProcess[pid] = 1;
-      buildProcessTree(pid, tree, pidsToProcess, spawnChildProcessesList, cb);
-    });
+    var pids = allData.match(/\d+/g);
+    if (pids) {
+      pids.forEach(function (pid) {
+        pid = parseInt(pid, 10);
+        tree[parentPid].push(pid);
+        tree[pid] = [];
+        pidsToProcess[pid] = 1;
+        buildProcessTree(pid, tree, pidsToProcess, spawnChildProcessesList, cb);
+      });
+    } else {
+      // no more parent processes
+      if (Object.keys(pidsToProcess).length === 0) {
+        cb();
+      }
+    }
   };
 
   ps.on("close", onClose);
